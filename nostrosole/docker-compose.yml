@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./front-end # Caminho para a pasta onde está o Dockerfile do frontend
+      dockerfile: Dockerfile
+    container_name: frontend_container
+    ports:
+      - "3000:3000" # Expor a porta 3000 (ou outra, se necessário)
+    volumes:
+      - ./front-end:/app # Monta o diretório local para o container
+    environment:
+      - NODE_ENV=development # Definir ambiente de desenvolvimento, se necessário
+    command: npm run dev # Rodar o comando que inicia o servidor de desenvolvimento
+
+  backend:
+    build:
+      context: ./back-end # Ajuste o caminho conforme sua estrutura de pastas
+      dockerfile: Dockerfile
+    container_name: backend_container
+    ports:
+      - "8000:8000" # Expor a porta 8000 para o Laravel
+    volumes:
+      - ./back-end:/var/www # Monta a pasta do backend no container
+    environment:
+      - DB_CONNECTION=mysql
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=your_database_name
+      - DB_USERNAME=your_username
+      - DB_PASSWORD=your_password
+    depends_on:
+      - mysql # O backend depende do serviço mysql
+
+  mysql:
+    image: mariadb
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password # Defina a senha do root
+      MYSQL_DATABASE: your_database_name
+      MYSQL_USER: your_username
+      MYSQL_PASSWORD: your_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

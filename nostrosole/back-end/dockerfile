@@ -1,0 +1,79 @@
+# Usar a imagem base desejada
+FROM ubuntu:20.04
+
+# Definir o fuso horário sem interação do usuário
+ENV TZ=America/Sao_Paulo
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Atualizar e instalar dependências necessárias
+RUN apt-get update && apt-get install -y \
+    mariadb-server \
+    mariadb-client \
+    php \
+    php-fpm \
+    php7.4-mysql \
+    php7.4-curl \
+    php-xml \
+    expect \
+    vim \
+    composer
+
+# Criar diretório de trabalho
+WORKDIR /var/www
+
+# Copiar o conteúdo do backend para o diretório de trabalho
+COPY ./ /var/www
+
+
+
+# Expor a porta 80
+EXPOSE 80
+
+RUN ls -a
+
+# Adicionar permissões ao script e executá-lo
+RUN chmod +x /var/www/mysql_secure_installation_expect.sh \
+    && /var/www/mysql_secure_installation_expect.sh
+
+# Inicializar o serviço MySQL e configurar o banco de dados
+RUN service mysql start \
+    && sleep 60 \
+    && mysql -e "CREATE DATABASE IF NOT EXISTS nostrosole;" \
+    && mysql -e "CREATE USER 'user1'@'localhost' IDENTIFIED BY '123mudar';" \
+    && mysql -e "GRANT ALL PRIVILEGES ON nostrosole.* TO 'user1'@'localhost';" \
+    && mysql -e "FLUSH PRIVILEGES;"
+
+# Configurar Laravel
+RUN cp .env.example .env \
+    && sed -i "s/DB_DATABASE=.*/DB_DATABASE=nostrosole/" .env \
+    && sed -i "s/DB_USERNAME=.*/DB_USERNAME=user1/" .env \
+    && sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=123mudar/" .env \
+    && sed -i "s/DB_HOST=.*/DB_HOST=127.0.0.1/" .env \
+    && sed -i "s/DB_PORT=.*/DB_PORT=3306/" .env
+
+# Instalar dependências do Composer
+RUN composer install
+
+# Criar diretório de storage e definir permissões
+RUN mkdir -p storage/app/public \
+    && chmod -R 775 storage \
+    && chmod -R 775 bootstrap/cache
+
+# Gerar chave da aplicação Laravel
+
+# Executar migrações, seeds e configuração do Passport
+RUN service mysql start \
+    && sleep 70 \
+    && until mysqladmin ping -h 127.0.0.1 --silent; do echo "Esperando o MySQL iniciar..."; sleep 5; done \
+    && php artisan key:generate \
+    && php artisan migrate:fresh --seed
+
+# Instalar Passport e configurar clientes
+RUN service mysql start \
+    && sleep 70 \
+    && until mysqladmin ping -h 127.0.0.1 --silent; do echo "Esperando o MySQL iniciar..."; sleep 5; done \
+    && php artisan passport:install \
+    && php artisan passport:client --personal \
+#   && php artisan storage:link
+# Comando para rodar o servidor Laravel
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
